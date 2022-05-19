@@ -289,6 +289,7 @@ void CPUMiner::search(const dev::eth::WorkPackage& w)
             Farm::f().submitProof(sol);
         }
         nonce += blocksize;
+        std::cout << "Nonce: " << nonce << std::endl;
 
         // Update the hash rate
         updateHashRate(blocksize, 1);
