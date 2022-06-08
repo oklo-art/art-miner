@@ -94,7 +94,7 @@ DEV_INLINE bool compute_hash(uint64_t nonce, uint2* mix_hash)
     }
 
     // keccak_256(keccak_512(header..nonce) .. mix);
-    if ((cuda_swab64(keccak_f1600_final(state)) & 0xffffffffffff0000) == (d_target & 0xffffffffffff0000))
+    if ((cuda_swab64(keccak_f1600_final(state)) & 0xff00000000000000) == (d_target & 0xff00000000000000))
         return true;
 
     mix_hash[0] = state[8];

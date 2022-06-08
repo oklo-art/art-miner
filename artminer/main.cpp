@@ -103,7 +103,7 @@ int main(int argc, char** argv)
   m_currentWp.block = block;
   m_currentWp.header   = h256("1234567890123456789012345678901234567890123456789012345678901234");
   m_currentWp.seed = h256("123");
-  m_currentWp.boundary = h256("42ff52d3522cffffffffffffffffffffffffffffffffffffffffffffffffffff");
+  m_currentWp.boundary = h256("54a8ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
   m_currentWp.exSizeBytes = 0;
   m_currentWp.startNonce = 0;
 

@@ -76,113 +76,7 @@ bool CUDAMiner::initDevice()
 
 bool CUDAMiner::initEpoch_internal()
 {
-    // If we get here it means epoch has changed so it's not necessary
-    // to check again dag sizes. They're changed for sure
-    bool retVar = false;
-    m_current_target = 0;
-    auto startInit = std::chrono::steady_clock::now();
-    size_t RequiredTotalMemory = (m_epochContext.dagSize + m_epochContext.lightSize);
-    size_t RequiredDagMemory = m_epochContext.dagSize;
-
-    // Release the pause flag if any
-    resume(MinerPauseEnum::PauseDueToInsufficientMemory);
-    resume(MinerPauseEnum::PauseDueToInitEpochError);
-
-    bool lightOnHost = false;
-    try
-    {
-        hash128_t* dag;
-        hash64_t* light;
-
-        // If we have already enough memory allocated, we just have to
-        // copy light_cache and regenerate the DAG
-        if (m_allocated_memory_dag < m_epochContext.dagSize ||
-            m_allocated_memory_light_cache < m_epochContext.lightSize)
-        {
-            // We need to reset the device and (re)create the dag
-            // cudaDeviceReset() frees all previous allocated memory
-            CUDA_SAFE_CALL(cudaDeviceReset());
-            CUDA_SAFE_CALL(cudaSetDeviceFlags(m_settings.schedule));
-            CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
-
-            // Check whether the current device has sufficient memory every time we recreate the dag
-            if (m_deviceDescriptor.totalMemory < RequiredTotalMemory)
-            {
-                if (m_deviceDescriptor.totalMemory < RequiredDagMemory)
-                {
-                    cudalog << "Epoch " << m_epochContext.epochNumber << " requires "
-                            << dev::getFormattedMemory((double)RequiredDagMemory) << " memory.";
-                    cudalog << "This device hasn't enough memory available. Mining suspended ...";
-                    pause(MinerPauseEnum::PauseDueToInsufficientMemory);
-                    return true;  // This will prevent to exit the thread and
-                                  // Eventually resume mining when changing coin or epoch (NiceHash)
-                }
-                else
-                    lightOnHost = true;
-            }
-
-            cudalog << "Generating DAG + Light(on " << (lightOnHost ? "host" : "GPU")
-                    << ") : " << dev::getFormattedMemory((double)RequiredTotalMemory);
-
-            // create buffer for cache
-            if (lightOnHost)
-            {
-                CUDA_SAFE_CALL(cudaHostAlloc(reinterpret_cast<void**>(&light),
-                    m_epochContext.lightSize, cudaHostAllocDefault));
-                cudalog << "WARNING: Generating DAG will take minutes, not seconds";
-            }
-            else
-                CUDA_SAFE_CALL(
-                    cudaMalloc(reinterpret_cast<void**>(&light), m_epochContext.lightSize));
-            m_allocated_memory_light_cache = m_epochContext.lightSize;
-            CUDA_SAFE_CALL(cudaMalloc(reinterpret_cast<void**>(&dag), m_epochContext.dagSize));
-            m_allocated_memory_dag = m_epochContext.dagSize;
-
-            // create mining buffers
-            for (unsigned i = 0; i != m_settings.streams; ++i)
-            {
-                CUDA_SAFE_CALL(cudaMallocHost(&m_search_buf[i], sizeof(Search_results)));
-                CUDA_SAFE_CALL(cudaStreamCreateWithFlags(&m_streams[i], cudaStreamNonBlocking));
-            }
-        }
-        else
-        {
-            cudalog << "Generating DAG + Light (reusing buffers): "
-                    << dev::getFormattedMemory((double)RequiredTotalMemory);
-            get_constants(&dag, NULL, &light, NULL);
-        }
-
-        CUDA_SAFE_CALL(cudaMemcpy(reinterpret_cast<void*>(light), m_epochContext.lightCache,
-            m_epochContext.lightSize, cudaMemcpyHostToDevice));
-
-        set_constants(dag, m_epochContext.dagNumItems, light,
-            m_epochContext.lightNumItems);  // in ethash_cuda_miner_kernel.cu
-
-        ethash_generate_dag(
-            m_epochContext.dagSize, m_settings.gridSize, m_settings.blockSize, m_streams[0]);
-
-        cudalog << "Generated DAG + Light in "
-                << std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::steady_clock::now() - startInit)
-                       .count()
-                << " ms. "
-                << dev::getFormattedMemory(
-                       lightOnHost ? (double)(m_deviceDescriptor.totalMemory - RequiredDagMemory) :
-                                     (double)(m_deviceDescriptor.totalMemory - RequiredTotalMemory))
-                << " left.";
-
-        retVar = true;
-    }
-    catch (const cuda_runtime_error& ec)
-    {
-        cudalog << "Unexpected error " << ec.what() << " on CUDA device "
-                << m_deviceDescriptor.uniqueId;
-        cudalog << "Mining suspended ...";
-        pause(MinerPauseEnum::PauseDueToInitEpochError);
-        retVar = true;
-    }
-
-    return retVar;
+  return true;
 }
 
 void CUDAMiner::workLoop()
@@ -208,19 +102,6 @@ void CUDAMiner::workLoop()
                     boost::get_system_time() + boost::posix_time::seconds(3);
                 boost::mutex::scoped_lock l(x_work);
                 m_new_work_signal.timed_wait(l, timeout);
-                continue;
-            }
-
-            // Epoch change ?
-            if (current.epoch != w.epoch)
-            {
-                if (!initEpoch())
-                    break;  // This will simply exit the thread
-
-                // As DAG generation takes a while we need to
-                // ensure we're on latest job, not on the one
-                // which triggered the epoch change
-                current = w;
                 continue;
             }
 

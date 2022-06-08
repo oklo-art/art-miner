@@ -388,10 +388,14 @@ DEV_INLINE uint64_t keccak_f1600_final(uint2* state)
     uint2 t[5], u, v;
     const uint2 u2zero = make_uint2(0, 0);
 
-    for (int i = 0; i < 12; ++i)
+    for (int i = 0; i < 8; ++i)
         s[i] = state[i];
 
-    s[12] = make_uint2(1, 0);
+    s[8] = make_uint2(1, 0);
+    s[9] = u2zero;
+    s[10] = u2zero;
+    s[11] = u2zero;
+    s[12] = u2zero;
     s[13] = u2zero;
     s[14] = u2zero;
     s[15] = u2zero;
